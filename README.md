@@ -264,7 +264,7 @@ __IoU (Intersection over Union)__ is one of the best __evaluation method__ for o
 According to the model results and evaluation scores of IoU1, IoU2 and IoU3, the low value is belong to IoU3 while IoU1 has achieved score of more than 0.90 in three successful trials. IoU3 measures how well the neural network can detect the target from far away and a quite strict metric, the target from far away would be vague pixels in particular with a quite low resolution image in this project. Only IoU3 score of 0.3 is achieved finally.
 
 ### Testing Model in the Simulator:
-The best model (with hyper parameters set 3) from the above mentioned was selected and copied the saved model weights to the code folder, started the simulator, then ran the following command to test the model in simulator:
+The best model (with hyper parameters set 3) was selected and copied the saved model weights to the code folder, started the simulator, then ran the following command to test the model in simulator:
 
 python3 follower.py --pred_viz model_weights
 
