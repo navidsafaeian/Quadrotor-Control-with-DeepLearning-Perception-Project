@@ -26,24 +26,31 @@ The following gif shows a __testing model in the simulator__ which the quadrotor
 The conventional CNN approaches for classification consist a serial of convolutional layers and
 then followed by fully connected layers to label each pixel with the class of its enclosing object or
 region (follwing figure). Although programming frameworks make convolutions easy to use, they remain one of the hardest concepts to understand in Deep Learning. A convolution layer transforms an input volume into an output volume of different size and then follwed by activation function to help with the nonlinear computation in the network. The pooling layer is responsible to reduce the input dimensionality and may avoid overfitting in learning process.  
-![conv][conv2d]
 
-
+<p align='center'>
+    <img src='docs/conv2d.png'>
+</p>
 
 One of the main problems with using CNNs for segmentation is the fully connected layers have fixed dimensions and would throw away spatial coordinates. Another one is pooling layers. Pooling layers increase the field of view and are able to aggregate the context while discarding the where information. However, semantic segmentation requires the exact alignment of class maps and thus, needs the where information to be preserved, like the following figure. Hence, by converting the fully-connected layers into convolutional layers and concatenating the intermediate score maps, a fully convolutional network (FCN) is proposed to delineate the boundaries of each object.
 
-![segment][segm]
+<p align='center'>
+    <img src='docs/segmentation1.jpg'>
+</p>
 
 ### FCN Architecture and Implemented Techniques:
 A Fully Convolutional neural network (FCN) is a normal CNN, where the last fully connected layer (classification layer) is substituted by another 1x1 convolution layer with a large "receptive field". The idea here is to capture the global context of the scene and enable us to tell what are the objects and their approximate locations in the scene. The output will be scene segmentation not only object classfication as it is the case in CNN.
 
 The structure of FCN is divided into two parts (convolution or encoder) part which will extract features from the image and (transposed convolution, deconvolution or decoder) part which will upscale the output of the encoder (or reverse the convolution) so that it is in the original size of the image.
 
-![fcn][fcn-layers]
+<p align='center'>
+    <img src='docs/fcn-layers.png'>
+</p>
 
 __1x1 convolution__ used instead of fully connected layers in order to preserve the spatial information and it can be use to reduce dimensionality. Fully connected layers are not used here because they usually common in classification task where spatial information are not so important. 1x1 convolutions has much less number of parameters than fully connected layers in case we want to learn reduced feature representation vector of our image. They are also useful for connecting already trained classifier like VGG of ResNet to the decoder layer and fine tune network for the segmentation task. Though, we don't use the fine tuning here and use the architecture to learn end-to-end segmentation task.
 
-![1x1conv][1x1conv]
+<p align='center'>
+    <img src='docs/1x1convolution.png'>
+</p>
 
 __Batch Normalization__ helps network automatically determines the scaling and shifting of the input data and prevents the decay gradient issue in depp layers backpropagation and help to obtain an optimized gradient descent. These parameters are learning together with all weights.
 
@@ -59,7 +66,9 @@ FCN used for the segmatic segmentation in this project is consisting of the foll
 - __Decoder Blocks:__ three (3) decoder layers including batch normalization layer, bilinear up-sampling (decompressing input) and adding inputs from previous encoder blocks through total 3 skip connections to recover some of the lost information hence do the precise segmentation.
 - __Softmax activation:__ used in the final layer of the FCN to take outputs from last decoder block and activate output pixels to indicate class and location of objects (semantic segmentation). here is text summaryfor model.summary():
 
-![modelsumary][modelsummary]
+<p align='center'>
+    <img src='docs/model-summary.png'>
+</p>
 
 To see more details regarding to the model graph in Tensorflow, here is the [link](https://github.com/nsafa/RoboND-DeepLearning-Project/blob/master/docs/cfn-tensor-graph.png) to its tensorboard graph.
 
@@ -72,7 +81,9 @@ I have used the following hardware and software:
 - NVIDIA cuDNN 5.1
 see GPU details as follows:
 
-![nvidia][nvidia]
+<p align='center'>
+    <img src='docs/nvidia-smi.png'>
+</p>
 
 I did not collect any more data from the simulator since I could reach all required steps using the existing training, validation and sample evaluation data sets. you can find these data sets as follows 
 - /data/train ( including 4,131 images + 4,131 masks)
@@ -96,7 +107,7 @@ def separable_conv2d_batchnorm(input_layer, filters, strides=1):
     return output_layer
 ```
 
-__Regular Convolution Layer:__ including 1x1 convolutional with batch normalization and ReLU activation function.
+__Regular Convolution Layer:__ Including 1x1 convolutional with batch normalization and ReLU activation function.
 
 ```python
 def conv2d_batchnorm(input_layer, filters, kernel_size=3, strides=1):
@@ -105,14 +116,14 @@ def conv2d_batchnorm(input_layer, filters, kernel_size=3, strides=1):
     output_layer = layers.BatchNormalization()(output_layer) 
     return output_layer
 ```
-__Bilinear Upsampling Layer:__ implemented in all decoder blocks.
+__Bilinear Upsampling Layer:__ Implemented in all decoder blocks.
 
 ```python
 def bilinear_upsample(input_layer):
     output_layer = BilinearUpSampling2D((2,2))(input_layer)
     return output_layer
 ```
-__Encoder Blocks:__ total 3 encoder blocks used in the model. Each of them is included one separable convolution layer that is having batch normalization and ReLU activation function.
+__Encoder Blocks:__ Total 3 encoder blocks used in the model. Each of them is included one separable convolution layer that is having batch normalization and ReLU activation function.
 
 ```python
 def encoder_block(input_layer, filters, strides):   
@@ -120,7 +131,7 @@ def encoder_block(input_layer, filters, strides):
     output_layer = separable_conv2d_batchnorm(input_layer, filters, strides)  
     return output_layer
 ```
-__Decoder Blocks__: total 3 decoder blocks which is consisting of Upsampler, a concatenate function for skip connection and then pass the resulting output to two layers of separable conv + batch normalization + ReLU activation function. 
+__Decoder Blocks:__ Total 3 decoder blocks which is consisting of Upsampler, a concatenate function for skip connection and then pass the resulting output to two layers of separable conv + batch normalization + ReLU activation function. 
 
 ```python
 def decoder_block(small_ip_layer, large_ip_layer, filters):   
@@ -203,7 +214,10 @@ Below is taken from one of the test trainings runs (Parameters Set 3).
 
 __Images while following the target:__ we evaluated how often the model makes a right decision and identifies the right person as the target on the 
 
-![eval-target][eval-target]
+
+<p align='center'>
+    <img src='docs/eval-target.png'>
+</p>
 
 __Scores for while the quad is following behind the target.__ <br/>
 number of validation samples intersection over the union evaulated on 542 <br/> 
@@ -214,7 +228,9 @@ number true positives: 539, number false positives: 0, number false negatives: 0
 
 __Images while at patrol without target:__ we evaluated how often the model makes a mistake and identifies the wrong person as the target.
  
-![petrol-without-target][petrol-without-target]
+<p align='center'>
+    <img src='docs/petrol-without-target.png'>
+</p>
 
 __Scores for images while the quad is on patrol and the target is not visable:__ <br/>
 number of validation samples intersection over the union evaulated on 270 <br/>
@@ -223,9 +239,11 @@ average intersection over union for other people is 0.735363402509011 <br/>
 average intersection over union for the hero is 0.0 <br/>
 number true positives: 0, number false positives: 83, number false negatives: 0 <br/>
 
-__Images while at patrol with target:__We evaluate how well the model can detect the target from a distance.
+__Images while at patrol with target:__ We evaluate how well the model can detect the target from a distance.
 
-![petrol-target][petrol-target]
+<p align='center'>
+    <img src='docs/petrol-target.png'>
+</p>
 
 __This score measures how well the neural network can detect the target from far away:__ <br/>
 number of validation samples intersection over the union evaulated on 322 <br/> 
@@ -236,7 +254,9 @@ number true positives: 166, number false positives: 1, number false negatives: 1
 
 __IoU (Intersection over Union)__ is one of the best __evaluation method__ for object detection. Here, we used the IoU to calculate the final score. The intersection set represents an AND operation (pixels that are truly part of a class AND are classified as part of the class by the network) and the Union represents an OR operation (pixels that are truly part of that class + pixels that are classified as part of that class by the network).
 
-![iou][iou]
+<p align='center'>
+    <img src='docs/iou.png'>
+</p>
 
 According to the model results and evaluation scores of IoU1, IoU2 and IoU3, the low value is belong to IoU3 while IoU1 has achieved score of more than 0.90 in three successful trials. IoU3 measures how well the neural network can detect the target from far away and a quite strict metric, the target from far away would be vague pixels in particular with a quite low resolution image in this project. Only IoU3 score of 0.3 is achieved finally.
 
