@@ -19,7 +19,10 @@
 In this project we will train a fully convolutional (FCN) deep neural network to identify and track a target in simulation. So-called “follow me” applications like this are key to many fields of robotics and the very same techniques you apply here could be extended to scenarios like advanced cruise control in autonomous vehicles or human-robot collaboration in industry. <br/>
 The following gif shows a __testing model in the simulator__ which the quadrotor is perfectly able to identify and follow the target by using FCN semantic segmentation method.
 
-![followme][followmegif] <a id='ref'></a>
+<p align='center'>
+    <img src='docs/followme.gif'>
+</p>
+
 
 ### Fully Convolutional Network (FCN):
 
