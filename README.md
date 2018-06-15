@@ -1,300 +1,261 @@
-{
- "cells": [
-  {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": [
-    "# Project : Deep Learning Follow Me\n",
-    "\n",
-    "[followmegif]: docs/followme.gif\n",
-    "[conv2d]: docs/conv2d.png\n",
-    "[segm]: docs/segmentation1.jpg\n",
-    "[fcn-layers]: docs/fcn-layers.png\n",
-    "[modelsummary]: docs/model-summary.png\n",
-    "[tensorboard]: docs/cfn-tensor-graph.png\n",
-    "[nvidia]: docs/nvidia-smi.png\n",
-    "[t-curves]: docs/training-curves.png\n",
-    "[t-curves1]: docs/training-curves1.png\n",
-    "[t-curves2]: docs/training-curves2.png\n",
-    "[1x1conv]: docs/1x1convolution.png\n",
-    "[eval-target]: docs/eval-target.png\n",
-    "[petrol-without-target]: docs/petrol-without-target.png\n",
-    "[petrol-target]: docs/petrol-target.png\n",
-    "[iou]: docs/iou.png\n",
-    "\n",
-    "In this project we will train a fully convolutional (FCN) deep neural network to identify and track a target in simulation. So-called “follow me” applications like this are key to many fields of robotics and the very same techniques you apply here could be extended to scenarios like advanced cruise control in autonomous vehicles or human-robot collaboration in industry. <br/>\n",
-    "The following gif shows a __testing model in the simulator__ which the quadrotor is perfectly able to identify and follow the target by using FCN semantic segmentation method.\n",
-    "\n",
-    "![followme][followmegif] <a id='ref'></a>\n",
-    "\n",
-    "### Fully Convolutional Network (FCN):\n",
-    "\n",
-    "The conventional CNN approaches for classification consist a serial of convolutional layers and\n",
-    "then followed by fully connected layers to label each pixel with the class of its enclosing object or\n",
-    "region (follwing figure). Although programming frameworks make convolutions easy to use, they remain one of the hardest concepts to understand in Deep Learning. A convolution layer transforms an input volume into an output volume of different size and then follwed by activation function to help with the nonlinear computation in the network. The pooling layer is responsible to reduce the input dimensionality and may avoid overfitting in learning process.  \n",
-    "![conv][conv2d]\n",
-    "\n",
-    "\n",
-    "\n",
-    "One of the main problems with using CNNs for segmentation is the fully connected layers have fixed dimensions and would throw away spatial coordinates. Another one is pooling layers. Pooling layers increase the field of view and are able to aggregate the context while discarding the where information. However, semantic segmentation requires the exact alignment of class maps and thus, needs the where information to be preserved, like the following figure. Hence, by converting the fully-connected layers into convolutional layers and concatenating the intermediate score maps, a fully convolutional network (FCN) is proposed to delineate the boundaries of each object.\n",
-    "\n",
-    "![segment][segm]\n",
-    "\n",
-    "### FCN Architecture and Implemented Techniques:\n",
-    "A Fully Convolutional neural network (FCN) is a normal CNN, where the last fully connected layer (classification layer) is substituted by another 1x1 convolution layer with a large \"receptive field\". The idea here is to capture the global context of the scene and enable us to tell what are the objects and their approximate locations in the scene. The output will be scene segmentation not only object classfication as it is the case in CNN.\n",
-    "\n",
-    "The structure of FCN is divided into two parts (convolution or encoder) part which will extract features from the image and (transposed convolution, deconvolution or decoder) part which will upscale the output of the encoder (or reverse the convolution) so that it is in the original size of the image.\n",
-    "\n",
-    "![fcn][fcn-layers]\n",
-    "\n",
-    "__1x1 convolution__ used instead of fully connected layers in order to preserve the spatial information and it can be use to reduce dimensionality. Fully connected layers are not used here because they usually common in classification task where spatial information are not so important. 1x1 convolutions has much less number of parameters than fully connected layers in case we want to learn reduced feature representation vector of our image. They are also useful for connecting already trained classifier like VGG of ResNet to the decoder layer and fine tune network for the segmentation task. Though, we don't use the fine tuning here and use the architecture to learn end-to-end segmentation task.\n",
-    "\n",
-    "![1x1conv][1x1conv]\n",
-    "\n",
-    "__Batch Normalization__ helps network automatically determines the scaling and shifting of the input data and prevents the decay gradient issue in depp layers backpropagation and help to obtain an optimized gradient descent. These parameters are learning together with all weights.\n",
-    "\n",
-    "Network architecture used for the task employs __3 encoder layers__ with separable convolutions and batch normalization, 1x1 convolution to essentially learn segments with preserving spacial information and 3 decoder layer with bilinear upsampling and skip layers to relevant encoder layers. See figure below for details.\n",
-    "\n",
-    "__Separable Convolutions__ decouple spatial and depth convolutions and greatly decreases the number of parameters in 5-8 times compared to standard convolutions. This helps to train network faster and what's more important to faster execute them on smaller embedded computing platforms usually used in robotics.\n",
-    "\n",
-    "One problem with this approach is that we lose some information every time we do convolution (encoding or down-sampling); we keep the smaller picture (the local context) and lose the bigger picture (the global context). Max pooling does this by only retaining the maximum value for each filtered area, and removing the remaining values. To solve this problem we also get some activation from previous layers (What we call __skip connections__) and sum/interpolate them together with the up-sampled outputs when decoding from the previous layer as shown in below diagram.\n",
-    "\n",
-    "FCN used for the segmatic segmentation in this project is consisting of the following layer blocks and components:\n",
-    "- __Encoder Blocks:__ three (3) encoder layers including separable 2D convolution layer (compressing down input), batch normalization layer and max pooling layer each \n",
-    "- __1x1 Convolution Block:__ that capture the global context of the scene.\n",
-    "- __Decoder Blocks:__ three (3) decoder layers including batch normalization layer, bilinear up-sampling (decompressing input) and adding inputs from previous encoder blocks through total 3 skip connections to recover some of the lost information hence do the precise segmentation.\n",
-    "- __Softmax activation:__ used in the final layer of the FCN to take outputs from last decoder block and activate output pixels to indicate class and location of objects (semantic segmentation). here is text summaryfor model.summary():\n",
-    "\n",
-    "![modelsumary][modelsummary]\n",
-    "\n",
-    "and here is the tensorboard graph [link](https://github.com/nsafa/..../docs/cfn-tensor-graph.png) for the FCN model for more details [tb-graph]......(https://github.com/nsafa/..../docs/cfn-tensor-graph.png)\n",
-    "\n",
-    "### Software and Hardware for  Deep Learning in this Project:\n",
-    "I have used the following hardware and software:\n",
-    "- NVIDIA GEFORCE GTX 1080 Ti - 11G GPU dedicated memory / CPU i7-6850K CPU @ 3.60GHz × 12 \n",
-    "- Ubuntu 16.04 LTS\n",
-    "- NVIDIA Drivers 384.130\n",
-    "- NVIDIA CUDA 8.0\n",
-    "- NVIDIA cuDNN 5.1\n",
-    "see GPU details as follows:\n",
-    "\n",
-    "![nvidia][nvidia]\n",
-    "\n",
-    "I did not collect any more data from the simulator since I could reach all required steps using the existing training, validation and sample evaluation data sets. you can find these data sets as follows \n",
-    "- /data/train ( including 4,131 images + 4,131 masks)\n",
-    "- /data/validation (including 1,184 images + 1,184 masks)\n",
-    "- /data/sample_evalution_data/following_images (including 542 images + 542 masks)\n",
-    "- /data/sample_evalution_data/patrol_non_targ (including 270 images + 270 masks)\n",
-    "- /data/sample_evalution_data/patrol_with_targ (including 322 images + 322 masks)\n",
-    "\n",
-    "\n",
-    "### FCN Implementation (Codes):\n",
-    "\n",
-    "The following types of layers were used along with their python codes in FCN model:\n",
-    "\n",
-    "__Separable Convolution Layer:__ Including batch normalization with ReLU activation function.\n",
-    "\n",
-    "```python\n",
-    "def separable_conv2d_batchnorm(input_layer, filters, strides=1):\n",
-    "    output_layer = SeparableConv2DKeras(filters=filters,kernel_size=3, strides=strides,\n",
-    "                             padding='same', activation='relu')(input_layer)\n",
-    "    output_layer = layers.BatchNormalization()(output_layer) \n",
-    "    return output_layer\n",
-    "```\n",
-    "\n",
-    "__Regular Convolution Layer:__ including 1x1 convolutional with batch normalization and ReLU activation function.\n",
-    "\n",
-    "```python\n",
-    "def conv2d_batchnorm(input_layer, filters, kernel_size=3, strides=1):\n",
-    "    output_layer = layers.Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, \n",
-    "                      padding='same', activation='relu')(input_layer)\n",
-    "    output_layer = layers.BatchNormalization()(output_layer) \n",
-    "    return output_layer\n",
-    "```\n",
-    "__Bilinear Upsampling Layer:__ implemented in all decoder blocks.\n",
-    "\n",
-    "```python\n",
-    "def bilinear_upsample(input_layer):\n",
-    "    output_layer = BilinearUpSampling2D((2,2))(input_layer)\n",
-    "    return output_layer\n",
-    "```\n",
-    "__Encoder Blocks:__ total 3 encoder blocks used in the model. Each of them is included one separable convolution layer that is having batch normalization and ReLU activation function.\n",
-    "\n",
-    "```python\n",
-    "def encoder_block(input_layer, filters, strides):   \n",
-    "    # Create a separable convolution layer using the separable_conv2d_batchnorm() function.\n",
-    "    output_layer = separable_conv2d_batchnorm(input_layer, filters, strides)  \n",
-    "    return output_layer\n",
-    "```\n",
-    "__Decoder Blocks__: total 3 decoder blocks which is consisting of Upsampler, a concatenate function for skip connection and then pass the resulting output to two layers of separable conv + batch normalization + ReLU activation function. \n",
-    "\n",
-    "```python\n",
-    "def decoder_block(small_ip_layer, large_ip_layer, filters):   \n",
-    "    # Upsample the small input layer using the bilinear_upsample() function.\n",
-    "    upsampled_small_ip_layer = bilinear_upsample(small_ip_layer)  \n",
-    "    # Concatenate the upsampled and large input layers using layers.concatenate\n",
-    "    output_layer = layers.concatenate([upsampled_small_ip_layer, large_ip_layer]) \n",
-    "    # Add some number of separable convolution layers\n",
-    "    output_layer = separable_conv2d_batchnorm( output_layer, filters, strides=1)\n",
-    "    output_layer = separable_conv2d_batchnorm( output_layer, filters, strides=1)\n",
-    "    return output_layer\n",
-    "```\n",
-    "__Softmax Activation:__\n",
-    "\n",
-    "```python\n",
-    "    outputs = layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(dec3_layer)\n",
-    "```\n",
-    "__the FCN Model:__\n",
-    "\n",
-    "```python\n",
-    "def fcn_model(inputs, num_classes):    \n",
-    "    # Add Encoder Blocks. \n",
-    "    enc1_layer = encoder_block(    inputs,  32, strides=1)\n",
-    "    enc2_layer = encoder_block(enc1_layer,  64, strides=1)\n",
-    "    enc3_layer = encoder_block(enc2_layer, 128, strides=1)\n",
-    "    # Add 1x1 Convolution layer using conv2d_batchnorm().\n",
-    "    conv1x1_layer = conv2d_batchnorm(enc3_layer, 256, kernel_size=1, strides=1)\n",
-    "    # Add the same number of Decoder Blocks as the number of Encoder Blocks\n",
-    "    dec1_layer = decoder_block(conv1x1_layer, enc2_layer, 128)\n",
-    "    dec2_layer = decoder_block(   dec1_layer, enc1_layer,  64)\n",
-    "    dec3_layer = decoder_block(   dec2_layer,     inputs,  32)    \n",
-    "    # The function returns the output layer of your model. \n",
-    "    return layers.Conv2D(num_classes, 3, activation='softmax', padding='same')(dec3_layer)\n",
-    "```\n",
-    "\n",
-    "### Hyper Parameters:\n",
-    "\n",
-    "I tried for this deep learning model with differnt hyper parameters i.e. __batch size (32, 64, 128, 256)__ and __learning rates between 0.0005 to 0.01__ with different epoch numbers. I chose the value of validation step based on a formula: validation sample number divided by batch size. I have already experienced with machine learning and particularly deep learning and provided a proper local system with a powerful gpu, so I did not need to work with AWS for this project and the parameter of cpu \"worker\". Steps per epoch can be a ceiling function of a value obtained from dividing the training samples number by batch size value. I used the Adam optimizer (as a default) and did not chenge it in my trials. \n",
-    "\n",
-    "To prevent the bias in training and better learning the model with a minimum training lost, I implemented __256 filters for 1x1 convolution layer__ instead of the default number of 64 filters that it led to an increase in the total weight parameters by almost double for the model(105,241 parameters). Therefore, I could learn my FCN model with three different hyper parameter sets depends on trail and error method which are able to satisfy the required IOU test score (>0.4). These three hyper parameter sets are the following:  \n",
-    "\n",
-    "\n",
-    "<table><tbody>\n",
-    "    <tr><th align=\"center\" colspan=\"4\">Hyper Parameters Set 1</td></tr>\n",
-    "    <tr><td align=\"left\">learning_rate: 0.001 </td><td align=\"left\">batch_size: 128</td>\n",
-    "    <td align=\"left\">num_epochs: 70</td><td align=\"left\">steps_per_epoch: 33</td></tr>    \n",
-    "    <tr><td align=\"left\">validation_steps: 12 </td><td align=\"left\">train_loss: 0.0174</td>\n",
-    "    <td align=\"left\">val_loss: 0.0286</td><td align=\"left\">final_score: 0.4058</td></tr> \n",
-    "</tbody></table>\n",
-    "\n",
-    "![trainingcurve][t-curves]\n",
-    "\n",
-    "<table><tbody>\n",
-    "    <tr><th align=\"center\" colspan=\"4\">Hyper Parameters Set 2</td></tr>\n",
-    "    <tr><td align=\"left\">learning_rate: 0.01 </td><td align=\"left\">batch_size: 32</td>\n",
-    "    <td align=\"left\">num_epochs: 100</td><td align=\"left\">steps_per_epoch: 130</td></tr>    \n",
-    "    <tr><td align=\"left\">validation_steps: 37 </td><td align=\"left\">train_loss: 0.0136</td>\n",
-    "    <td align=\"left\">val_loss: 0.0290</td><td align=\"left\">final_score: 0.4326</td></tr> \n",
-    "</tbody></table>\n",
-    "\n",
-    "![trainingcurve1][t-curves1]\n",
-    "\n",
-    "<table><tbody>\n",
-    "    <tr><th align=\"center\" colspan=\"4\">Hyper Parameters Set 3</td></tr>\n",
-    "    <tr><td align=\"left\">learning_rate: 0.007 </td><td align=\"left\">batch_size: 32</td>\n",
-    "    <td align=\"left\">num_epochs: 100</td><td align=\"left\">steps_per_epoch: 130</td></tr>    \n",
-    "    <tr><td align=\"left\">validation_steps: 37 </td><td align=\"left\">train_loss: 0.0135</td>\n",
-    "    <td align=\"left\">val_loss: 0.0277</td><td align=\"left\">final_score: 0.4602</td></tr> \n",
-    "</tbody></table>\n",
-    "   \n",
-    "![trainingcurve2][t-curves2]\n",
-    "\n",
-    "You can find the HTML version of model_training.ipynb notebook for these three cases  on this [link] ..........................\n",
-    "\n",
-    "### Prediction and Evaluation:\n",
-    "\n",
-    "Three different sample evaluation data sets are available from the helper code (as mentioned earlier) which are used to evaluate how well the FCN model is doing under different conditions \n",
-    "\n",
-    "Below is taken from one of the test trainings runs (Parameters Set 3).\n",
-    "\n",
-    "__Images while following the target:__ we evaluated how often the model makes a right decision and identifies the right person as the target on the \n",
-    "\n",
-    "![eval-target][eval-target]\n",
-    "\n",
-    "__Scores for while the quad is following behind the target.__ <br/>\n",
-    "number of validation samples intersection over the union evaulated on 542 <br/> \n",
-    "average intersection over union for background is 0.9959687504068635 <br/> \n",
-    "average intersection over union for other people is 0.38065053965159495 <br/> \n",
-    "average intersection over union for the hero is 0.905131391830303 <br/> \n",
-    "number true positives: 539, number false positives: 0, number false negatives: 0 <br/> \n",
-    "\n",
-    "__Images while at patrol without target:__ we evaluated how often the model makes a mistake and identifies the wrong person as the target.\n",
-    " \n",
-    "![petrol-without-target][petrol-without-target]\n",
-    "\n",
-    "__Scores for images while the quad is on patrol and the target is not visable:__ <br/>\n",
-    "number of validation samples intersection over the union evaulated on 270 <br/>\n",
-    "average intersection over union for background is 0.9877856713508242 <br/>\n",
-    "average intersection over union for other people is 0.735363402509011 <br/>\n",
-    "average intersection over union for the hero is 0.0 <br/>\n",
-    "number true positives: 0, number false positives: 83, number false negatives: 0 <br/>\n",
-    "\n",
-    "__Images while at patrol with target:__We evaluate how well the model can detect the target from a distance.\n",
-    "\n",
-    "![petrol-target][petrol-target]\n",
-    "\n",
-    "__This score measures how well the neural network can detect the target from far away:__ <br/>\n",
-    "number of validation samples intersection over the union evaulated on 322 <br/> \n",
-    "average intersection over union for background is 0.9964651913339608 <br/>\n",
-    "average intersection over union for other people is 0.46814013260453274 <br/>\n",
-    "average intersection over union for the hero is 0.301131015531467 <br/>\n",
-    "number true positives: 166, number false positives: 1, number false negatives: 135 <br/>\n",
-    "\n",
-    "__IoU (Intersection over Union)__ is one of the best __evaluation method__ for object detection. Here, we used the IoU to calculate the final score. The intersection set represents an AND operation (pixels that are truly part of a class AND are classified as part of the class by the network) and the Union represents an OR operation (pixels that are truly part of that class + pixels that are classified as part of that class by the network).\n",
-    "\n",
-    "![iou][iou]\n",
-    "\n",
-    "According to the model results and evaluation scores of IoU1, IoU2 and IoU3, the low value is belong to IoU3 while IoU1 has achieved score of more than 0.90 in three successful trials. IoU3 measures how well the neural network can detect the target from far away and a quite strict metric, the target from far away would be vague pixels in particular with a quite low resolution image in this project. Only IoU3 score of 0.3 is achieved finally.\n",
-    "\n",
-    "### Testing Model in the Simulator:\n",
-    "The best model (with hyper parameters set 3) from the above mentioned was selected and copied the saved model weights to the code folder, started the simulator, then ran the following command to test the model in simulator:\n",
-    "\n",
-    "python3 follower.py --pred_viz model_weights\n",
-    "\n",
-    "In the first of this report (Readme) you can see the recording of the test as a gif format. [link]...........\n",
-    "\n",
-    "__Using the same model to track other objects:__\n",
-    "There is no need to change in the model structure and network architecture when you want to change in target or size of input data. all what we need is to change the mask data and train again on the new target then use the same network to track the new object. However, if you decided to cope with some issues like object distance from camera or some performance improvements, the architecture change such as adding more layers or regularization terms in layers would be one of the solutions.  \n",
-    "\n",
-    "### Improvements\n",
-    "- Bigger training dataset are preferred.\n",
-    "- Impelement the transfer learning method and then fine tuning by using pre-trained networks such as Resnet and VGG models. \n",
-    "- Conditional Random Field (CRF) is commonly used to refine boundary based on the underlying image intensities in FCN architecture, it would be helpful if CRF is added for this project.\n",
-    "- To reduce bias and overfitting, we can add more layers and kernel filters to the network, and implement the regularization techniques in some layers respectively.  \n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "collapsed": true
-   },
-   "outputs": [],
-   "source": []
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.6.2"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 2
-}
+# Project : Deep Learning Follow Me
+
+[followmegif]: docs/followme.gif
+[conv2d]: docs/conv2d.png
+[segm]: docs/segmentation1.jpg
+[fcn-layers]: docs/fcn-layers.png
+[modelsummary]: docs/model-summary.png
+[tensorboard]: docs/cfn-tensor-graph.png
+[nvidia]: docs/nvidia-smi.png
+[t-curves]: docs/training-curves.png
+[t-curves1]: docs/training-curves1.png
+[t-curves2]: docs/training-curves2.png
+[1x1conv]: docs/1x1convolution.png
+[eval-target]: docs/eval-target.png
+[petrol-without-target]: docs/petrol-without-target.png
+[petrol-target]: docs/petrol-target.png
+[iou]: docs/iou.png
+
+In this project we will train a fully convolutional (FCN) deep neural network to identify and track a target in simulation. So-called “follow me” applications like this are key to many fields of robotics and the very same techniques you apply here could be extended to scenarios like advanced cruise control in autonomous vehicles or human-robot collaboration in industry. <br/>
+The following gif shows a __testing model in the simulator__ which the quadrotor is perfectly able to identify and follow the target by using FCN semantic segmentation method.
+
+![followme][followmegif] <a id='ref'></a>
+
+### Fully Convolutional Network (FCN):
+
+The conventional CNN approaches for classification consist a serial of convolutional layers and
+then followed by fully connected layers to label each pixel with the class of its enclosing object or
+region (follwing figure). Although programming frameworks make convolutions easy to use, they remain one of the hardest concepts to understand in Deep Learning. A convolution layer transforms an input volume into an output volume of different size and then follwed by activation function to help with the nonlinear computation in the network. The pooling layer is responsible to reduce the input dimensionality and may avoid overfitting in learning process.  
+![conv][conv2d]
+
+
+
+One of the main problems with using CNNs for segmentation is the fully connected layers have fixed dimensions and would throw away spatial coordinates. Another one is pooling layers. Pooling layers increase the field of view and are able to aggregate the context while discarding the where information. However, semantic segmentation requires the exact alignment of class maps and thus, needs the where information to be preserved, like the following figure. Hence, by converting the fully-connected layers into convolutional layers and concatenating the intermediate score maps, a fully convolutional network (FCN) is proposed to delineate the boundaries of each object.
+
+![segment][segm]
+
+### FCN Architecture and Implemented Techniques:
+A Fully Convolutional neural network (FCN) is a normal CNN, where the last fully connected layer (classification layer) is substituted by another 1x1 convolution layer with a large "receptive field". The idea here is to capture the global context of the scene and enable us to tell what are the objects and their approximate locations in the scene. The output will be scene segmentation not only object classfication as it is the case in CNN.
+
+The structure of FCN is divided into two parts (convolution or encoder) part which will extract features from the image and (transposed convolution, deconvolution or decoder) part which will upscale the output of the encoder (or reverse the convolution) so that it is in the original size of the image.
+
+![fcn][fcn-layers]
+
+__1x1 convolution__ used instead of fully connected layers in order to preserve the spatial information and it can be use to reduce dimensionality. Fully connected layers are not used here because they usually common in classification task where spatial information are not so important. 1x1 convolutions has much less number of parameters than fully connected layers in case we want to learn reduced feature representation vector of our image. They are also useful for connecting already trained classifier like VGG of ResNet to the decoder layer and fine tune network for the segmentation task. Though, we don't use the fine tuning here and use the architecture to learn end-to-end segmentation task.
+
+![1x1conv][1x1conv]
+
+__Batch Normalization__ helps network automatically determines the scaling and shifting of the input data and prevents the decay gradient issue in depp layers backpropagation and help to obtain an optimized gradient descent. These parameters are learning together with all weights.
+
+Network architecture used for the task employs __3 encoder layers__ with separable convolutions and batch normalization, 1x1 convolution to essentially learn segments with preserving spacial information and 3 decoder layer with bilinear upsampling and skip layers to relevant encoder layers. See figure below for details.
+
+__Separable Convolutions__ decouple spatial and depth convolutions and greatly decreases the number of parameters in 5-8 times compared to standard convolutions. This helps to train network faster and what's more important to faster execute them on smaller embedded computing platforms usually used in robotics.
+
+One problem with this approach is that we lose some information every time we do convolution (encoding or down-sampling); we keep the smaller picture (the local context) and lose the bigger picture (the global context). Max pooling does this by only retaining the maximum value for each filtered area, and removing the remaining values. To solve this problem we also get some activation from previous layers (What we call __skip connections__) and sum/interpolate them together with the up-sampled outputs when decoding from the previous layer as shown in below diagram.
+
+FCN used for the segmatic segmentation in this project is consisting of the following layer blocks and components:
+- __Encoder Blocks:__ three (3) encoder layers including separable 2D convolution layer (compressing down input), batch normalization layer and max pooling layer each 
+- __1x1 Convolution Block:__ that capture the global context of the scene.
+- __Decoder Blocks:__ three (3) decoder layers including batch normalization layer, bilinear up-sampling (decompressing input) and adding inputs from previous encoder blocks through total 3 skip connections to recover some of the lost information hence do the precise segmentation.
+- __Softmax activation:__ used in the final layer of the FCN to take outputs from last decoder block and activate output pixels to indicate class and location of objects (semantic segmentation). here is text summaryfor model.summary():
+
+![modelsumary][modelsummary]
+
+To see more details regarding to the model graph in Tensorflow, here is the [link](https://github.com/nsafa/RoboND-DeepLearning-Project/blob/master/docs/cfn-tensor-graph.png) to its tensorboard graph.
+
+### Software and Hardware for  Deep Learning in this Project:
+I have used the following hardware and software:
+- NVIDIA GEFORCE GTX 1080 Ti - 11G GPU dedicated memory / CPU i7-6850K CPU @ 3.60GHz × 12 
+- Ubuntu 16.04 LTS
+- NVIDIA Drivers 384.130
+- NVIDIA CUDA 8.0
+- NVIDIA cuDNN 5.1
+see GPU details as follows:
+
+![nvidia][nvidia]
+
+I did not collect any more data from the simulator since I could reach all required steps using the existing training, validation and sample evaluation data sets. you can find these data sets as follows 
+- /data/train ( including 4,131 images + 4,131 masks)
+- /data/validation (including 1,184 images + 1,184 masks)
+- /data/sample_evalution_data/following_images (including 542 images + 542 masks)
+- /data/sample_evalution_data/patrol_non_targ (including 270 images + 270 masks)
+- /data/sample_evalution_data/patrol_with_targ (including 322 images + 322 masks)
+
+
+### FCN Implementation (Codes):
+
+The following types of layers were used along with their python codes in FCN model:
+
+__Separable Convolution Layer:__ Including batch normalization with ReLU activation function.
+
+```python
+def separable_conv2d_batchnorm(input_layer, filters, strides=1):
+    output_layer = SeparableConv2DKeras(filters=filters,kernel_size=3, strides=strides,
+                             padding='same', activation='relu')(input_layer)
+    output_layer = layers.BatchNormalization()(output_layer) 
+    return output_layer
+```
+
+__Regular Convolution Layer:__ including 1x1 convolutional with batch normalization and ReLU activation function.
+
+```python
+def conv2d_batchnorm(input_layer, filters, kernel_size=3, strides=1):
+    output_layer = layers.Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, 
+                      padding='same', activation='relu')(input_layer)
+    output_layer = layers.BatchNormalization()(output_layer) 
+    return output_layer
+```
+__Bilinear Upsampling Layer:__ implemented in all decoder blocks.
+
+```python
+def bilinear_upsample(input_layer):
+    output_layer = BilinearUpSampling2D((2,2))(input_layer)
+    return output_layer
+```
+__Encoder Blocks:__ total 3 encoder blocks used in the model. Each of them is included one separable convolution layer that is having batch normalization and ReLU activation function.
+
+```python
+def encoder_block(input_layer, filters, strides):   
+    # Create a separable convolution layer using the separable_conv2d_batchnorm() function.
+    output_layer = separable_conv2d_batchnorm(input_layer, filters, strides)  
+    return output_layer
+```
+__Decoder Blocks__: total 3 decoder blocks which is consisting of Upsampler, a concatenate function for skip connection and then pass the resulting output to two layers of separable conv + batch normalization + ReLU activation function. 
+
+```python
+def decoder_block(small_ip_layer, large_ip_layer, filters):   
+    # Upsample the small input layer using the bilinear_upsample() function.
+    upsampled_small_ip_layer = bilinear_upsample(small_ip_layer)  
+    # Concatenate the upsampled and large input layers using layers.concatenate
+    output_layer = layers.concatenate([upsampled_small_ip_layer, large_ip_layer]) 
+    # Add some number of separable convolution layers
+    output_layer = separable_conv2d_batchnorm( output_layer, filters, strides=1)
+    output_layer = separable_conv2d_batchnorm( output_layer, filters, strides=1)
+    return output_layer
+```
+__Softmax Activation:__
+
+```python
+    outputs = layers.Conv2D(num_classes, 1, activation='softmax', padding='same')(dec3_layer)
+```
+__the FCN Model:__
+
+```python
+def fcn_model(inputs, num_classes):    
+    # Add Encoder Blocks. 
+    enc1_layer = encoder_block(    inputs,  32, strides=1)
+    enc2_layer = encoder_block(enc1_layer,  64, strides=1)
+    enc3_layer = encoder_block(enc2_layer, 128, strides=1)
+    # Add 1x1 Convolution layer using conv2d_batchnorm().
+    conv1x1_layer = conv2d_batchnorm(enc3_layer, 256, kernel_size=1, strides=1)
+    # Add the same number of Decoder Blocks as the number of Encoder Blocks
+    dec1_layer = decoder_block(conv1x1_layer, enc2_layer, 128)
+    dec2_layer = decoder_block(   dec1_layer, enc1_layer,  64)
+    dec3_layer = decoder_block(   dec2_layer,     inputs,  32)    
+    # The function returns the output layer of your model. 
+    return layers.Conv2D(num_classes, 3, activation='softmax', padding='same')(dec3_layer)
+```
+
+### Hyper Parameters:
+
+I tried for this deep learning model with differnt hyper parameters i.e. __batch size (32, 64, 128, 256)__ and __learning rates between 0.0005 to 0.01__ with different epoch numbers. I chose the value of validation step based on a formula: validation sample number divided by batch size. I have already experienced with machine learning and particularly deep learning and provided a proper local system with a powerful gpu, so I did not need to work with AWS for this project and the parameter of cpu "worker". Steps per epoch can be a ceiling function of a value obtained from dividing the training samples number by batch size value. I used the Adam optimizer (as a default) and did not chenge it in my trials. 
+
+To prevent the bias in training and better learning the model with a minimum training lost, I implemented __256 filters for 1x1 convolution layer__ instead of the default number of 64 filters that it led to an increase in the total weight parameters by almost double for the model(105,241 parameters). Therefore, I could learn my FCN model with three different hyper parameter sets depends on trail and error method which are able to satisfy the required IOU test score (>0.4). These three hyper parameter sets are the following:  
+
+
+<table><tbody>
+    <tr><th align="center" colspan="4">Hyper Parameters Set 1</td></tr>
+    <tr><td align="left">learning_rate: 0.001 </td><td align="left">batch_size: 128</td>
+    <td align="left">num_epochs: 70</td><td align="left">steps_per_epoch: 33</td></tr>    
+    <tr><td align="left">validation_steps: 12 </td><td align="left">train_loss: 0.0174</td>
+    <td align="left">val_loss: 0.0286</td><td align="left">final_score: 0.4058</td></tr> 
+</tbody></table>
+
+![trainingcurve][t-curves]
+
+<table><tbody>
+    <tr><th align="center" colspan="4">Hyper Parameters Set 2</td></tr>
+    <tr><td align="left">learning_rate: 0.01 </td><td align="left">batch_size: 32</td>
+    <td align="left">num_epochs: 100</td><td align="left">steps_per_epoch: 130</td></tr>    
+    <tr><td align="left">validation_steps: 37 </td><td align="left">train_loss: 0.0136</td>
+    <td align="left">val_loss: 0.0290</td><td align="left">final_score: 0.4326</td></tr> 
+</tbody></table>
+
+![trainingcurve1][t-curves1]
+
+<table><tbody>
+    <tr><th align="center" colspan="4">Hyper Parameters Set 3</td></tr>
+    <tr><td align="left">learning_rate: 0.007 </td><td align="left">batch_size: 32</td>
+    <td align="left">num_epochs: 100</td><td align="left">steps_per_epoch: 130</td></tr>    
+    <tr><td align="left">validation_steps: 37 </td><td align="left">train_loss: 0.0135</td>
+    <td align="left">val_loss: 0.0277</td><td align="left">final_score: 0.4602</td></tr> 
+</tbody></table>
+   
+![trainingcurve2][t-curves2]
+
+You can find the HTML version of model_training.ipynb notebook for these three cases in the code folder on this [link](https://github.com/nsafa/RoboND-DeepLearning-Project/tree/master/code). 
+
+### Prediction and Evaluation:
+
+Three different sample evaluation data sets are available from the helper code (as mentioned earlier) which are used to evaluate how well the FCN model is doing under different conditions 
+
+Below is taken from one of the test trainings runs (Parameters Set 3).
+
+__Images while following the target:__ we evaluated how often the model makes a right decision and identifies the right person as the target on the 
+
+![eval-target][eval-target]
+
+__Scores for while the quad is following behind the target.__ <br/>
+number of validation samples intersection over the union evaulated on 542 <br/> 
+average intersection over union for background is 0.9959687504068635 <br/> 
+average intersection over union for other people is 0.38065053965159495 <br/> 
+average intersection over union for the hero is 0.905131391830303 <br/> 
+number true positives: 539, number false positives: 0, number false negatives: 0 <br/> 
+
+__Images while at patrol without target:__ we evaluated how often the model makes a mistake and identifies the wrong person as the target.
+ 
+![petrol-without-target][petrol-without-target]
+
+__Scores for images while the quad is on patrol and the target is not visable:__ <br/>
+number of validation samples intersection over the union evaulated on 270 <br/>
+average intersection over union for background is 0.9877856713508242 <br/>
+average intersection over union for other people is 0.735363402509011 <br/>
+average intersection over union for the hero is 0.0 <br/>
+number true positives: 0, number false positives: 83, number false negatives: 0 <br/>
+
+__Images while at patrol with target:__We evaluate how well the model can detect the target from a distance.
+
+![petrol-target][petrol-target]
+
+__This score measures how well the neural network can detect the target from far away:__ <br/>
+number of validation samples intersection over the union evaulated on 322 <br/> 
+average intersection over union for background is 0.9964651913339608 <br/>
+average intersection over union for other people is 0.46814013260453274 <br/>
+average intersection over union for the hero is 0.301131015531467 <br/>
+number true positives: 166, number false positives: 1, number false negatives: 135 <br/>
+
+__IoU (Intersection over Union)__ is one of the best __evaluation method__ for object detection. Here, we used the IoU to calculate the final score. The intersection set represents an AND operation (pixels that are truly part of a class AND are classified as part of the class by the network) and the Union represents an OR operation (pixels that are truly part of that class + pixels that are classified as part of that class by the network).
+
+![iou][iou]
+
+According to the model results and evaluation scores of IoU1, IoU2 and IoU3, the low value is belong to IoU3 while IoU1 has achieved score of more than 0.90 in three successful trials. IoU3 measures how well the neural network can detect the target from far away and a quite strict metric, the target from far away would be vague pixels in particular with a quite low resolution image in this project. Only IoU3 score of 0.3 is achieved finally.
+
+### Testing Model in the Simulator:
+The best model (with hyper parameters set 3) from the above mentioned was selected and copied the saved model weights to the code folder, started the simulator, then ran the following command to test the model in simulator:
+
+python3 follower.py --pred_viz model_weights
+
+In the first of this report (Readme) you can see the recording of the test as a gif format, or through this [link](https://github.com/nsafa/RoboND-DeepLearning-Project/blob/master/docs/followme.gif). 
+
+__Using the same model to track other objects:__
+There is no need to change in the model structure and network architecture when you want to change in target or size of input data. all what we need is to change the mask data and train again on the new target then use the same network to track the new object. However, if you decided to cope with some issues like object distance from camera or some performance improvements, the architecture change such as adding more layers or regularization terms in layers would be one of the solutions.  
+
+### Improvements
+- Bigger training dataset are preferred.
+- Impelement the transfer learning method and then fine tuning by using pre-trained networks such as Resnet and VGG models. 
+- Conditional Random Field (CRF) is commonly used to refine boundary based on the underlying image intensities in FCN architecture, it would be helpful if CRF is added for this project.
+- To reduce bias and overfitting, we can add more layers and kernel filters to the network, and implement the regularization techniques in some layers respectively.  
+
 
 ## Setup Instructions
 **Clone the repository**
