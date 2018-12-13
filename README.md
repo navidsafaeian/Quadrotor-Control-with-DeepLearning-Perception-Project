@@ -1,4 +1,4 @@
-# Project : Follow Me! - Quadrotor Control by using a Cutting-Edge Visual Perception Method (Deep Learning FCN for Semantic Segmentation)
+## Project : Follow Me! - Quadrotor Control by using a Cutting-Edge Visual Perception Method (Deep Learning FCN for Semantic Segmentation)
 
 [followmegif]: docs/followme.gif
 [conv2d]: docs/conv2d.png
